@@ -103,7 +103,7 @@ export async function handleChatLogic(bot, msg, userPrompt, deps) {
 
     activeUsers.add(userId);
     let placeholder;
-    const thinkingText = await db.getText('error_thinking', "آرتور داره فکر می‌کنه...");
+    const thinkingText = await db.getText('error_thinking', "جیسون داره فکر می‌کنه...");
 
     try {
         placeholder = await bot.sendMessage(chatId, thinkingText, { reply_to_message_id: msg.message_id });

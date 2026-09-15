@@ -1,5 +1,4 @@
-﻿
-import { promisify } from 'util';
+﻿import { promisify } from 'util';
 import { exec } from 'child_process';
 import * as db from '../database.js';
 import { handleChatLogic, handleTelegramApiError } from '../core/chatLogic.js';
@@ -34,7 +33,7 @@ function init(deps) {
     reinforcedUsersThisSession = deps.reinforcedUsersThisSession;
     appPrompts = deps.appPrompts;
     appConfig = deps.appConfig;
-    
+
     initGroupLifecycle(deps);
     initStartHandler(deps);
 }
@@ -71,9 +70,9 @@ function isDirectlyAddressingArthur(text) {
     const originalKeyword = originalWords.find(w => arthurKeywords.includes(w.toLowerCase()));
     const promptStartIndex = originalWords.findIndex(w => w === originalKeyword) + 1;
     let cleanPrompt = originalWords.slice(promptStartIndex).join(' ').trim();
-    
+
     if (cleanPrompt.length === 0) {
-         cleanPrompt = originalKeyword;
+        cleanPrompt = originalKeyword;
     }
 
     return { isAddressing: true, prompt: cleanPrompt };
@@ -84,14 +83,34 @@ const groupMessageCounters = new Map();
 async function handleGeneralMessage(bot, msg) {
     const userId = msg.from?.id;
     const text = msg.text;
-    
+
     if (!userId) return;
+
+    /*
+     * کاربران عادی در PV اجازه استفاده از بات را ندارند.
+     *
+     * Commandها در onText جداگانه کنترل می‌شوند،
+     * بنابراین اگر پیام یک command باشد اینجا چیزی نمی‌فرستیم
+     * تا پیام دوبل ارسال نشود.
+     */
+    if (msg.chat.type === 'private' && !isOwner(userId)) {
+        if (text && text.startsWith('/')) {
+            return;
+        }
+
+        return sendMessageSafe(
+            bot,
+            msg.chat.id,
+            '❌ برای استفاده از من، باید من را به یک گروه اضافه کنید.'
+        );
+    }
+
     if (!msg.date || (Math.floor(Date.now() / 1000) - msg.date) > 120) return;
 
     if (msg.new_chat_members) {
         return handleNewChatMembers(bot, msg);
     }
-    
+
     if (msg.chat.type !== 'private') {
         const guardHandled = await handleGroupGuard(bot, msg, botInfo);
         if (guardHandled) return;
@@ -107,80 +126,169 @@ async function handleGeneralMessage(bot, msg) {
         if (counter >= Math.floor(Math.random() * 11) + 10) {
             groupMessageCounters.set(chatId, 0);
             const messageText = msg.text || msg.caption || '';
+
             if (messageText.length > 10) {
                 const contextPrompt = `این پیام از گروه: "${messageText}"\n\nیک نظر کوتاه و جذاب درباره این پیام بده و با کاربر صحبت کن.`;
-                handleChatLogic(bot, msg, contextPrompt, { userCooldowns, activeUsers, reinforcedUsersThisSession, appPrompts, appConfig });
+
+                handleChatLogic(
+                    bot,
+                    msg,
+                    contextPrompt,
+                    {
+                        userCooldowns,
+                        activeUsers,
+                        reinforcedUsersThisSession,
+                        appPrompts,
+                        appConfig
+                    }
+                );
+
                 return;
             }
         }
     }
 
     let ownerState = { state: null, data: {} };
+
     if (isOwner(userId)) {
         try {
             ownerState = await db.getOwnerState(userId);
         } catch (e) {
             await db.clearOwnerState(userId);
-            return sendMessageSafe(bot, userId, await db.getText('error_state_reset', "خطا"));
+            return sendMessageSafe(
+                bot,
+                userId,
+                await db.getText('error_state_reset', "خطا")
+            );
         }
-        
+
         if (ownerState.state !== null) {
-            const handled = await handleAdminInput(bot, msg, ownerState);
+            const handled = await handleAdminInput(
+                bot,
+                msg,
+                ownerState
+            );
+
             if (handled) return;
         }
     }
 
     const userState = await db.getUserState(userId);
+
     if (userState && userState.state === 'user_editing_memory') {
-        const handled = await handleUserMemoryInput(bot, msg, userState);
+        const handled = await handleUserMemoryInput(
+            bot,
+            msg,
+            userState
+        );
+
         if (handled) return;
     }
 
-    if (userState && (userState.state === 'key_awaiting' || userState.state === 'validating')) {
-        const handled = await handleUserKeyDonation(bot, msg);
+    if (
+        userState &&
+        (
+            userState.state === 'key_awaiting' ||
+            userState.state === 'validating'
+        )
+    ) {
+        const handled = await handleUserKeyDonation(
+            bot,
+            msg
+        );
+
         if (handled) return;
     }
-    
+
     if (text && !text.startsWith('/') && botInfo.username) {
         const botIdMention = `@${botInfo.id}`;
         const isAIMode = text.startsWith(botIdMention + ' ');
-        
+
         if (isAIMode) {
             const aiPrompt = text.replace(botIdMention, '').trim();
+
             if (aiPrompt.length > 0) {
-                const placeholder = await bot.sendMessage(msg.chat.id, "⏳ در حال پردازش...", { reply_to_message_id: msg.message_id });
+                const placeholder = await bot.sendMessage(
+                    msg.chat.id,
+                    "⏳ در حال پردازش...",
+                    {
+                        reply_to_message_id: msg.message_id
+                    }
+                );
+
                 try {
                     const result = await apiService.generateResponse({
                         systemInstruction: "You are a helpful AI assistant. Respond in Persian.",
                         history: [],
                         prompt: aiPrompt
                     });
-                    const response = result.filtered ? "محتوا فیلتر شد." : result.text || "خطا در پردازش";
-                    await bot.editMessageText(response, { chat_id: msg.chat.id, message_id: placeholder.message_id, parse_mode: 'Markdown' });
+
+                    const response = result.filtered
+                        ? "محتوا فیلتر شد."
+                        : result.text || "خطا در پردازش";
+
+                    await bot.editMessageText(
+                        response,
+                        {
+                            chat_id: msg.chat.id,
+                            message_id: placeholder.message_id,
+                            parse_mode: 'Markdown'
+                        }
+                    );
                 } catch (error) {
-                    await bot.editMessageText("❌ خطا در پردازش درخواست.", { chat_id: msg.chat.id, message_id: placeholder.message_id });
+                    await bot.editMessageText(
+                        "❌ خطا در پردازش درخواست.",
+                        {
+                            chat_id: msg.chat.id,
+                            message_id: placeholder.message_id
+                        }
+                    );
                 }
             }
+
             return;
         }
 
-        let isDirectReply = msg.reply_to_message?.from?.id === botInfo.id;
-        let isMentioned = text.includes(`@${botInfo.username}`);
-        let { isAddressing, prompt: keywordPrompt } = isDirectlyAddressingArthur(text);
+        let isDirectReply =
+            msg.reply_to_message?.from?.id === botInfo.id;
+
+        let isMentioned =
+            text.includes(`@${botInfo.username}`);
+
+        let {
+            isAddressing,
+            prompt: keywordPrompt
+        } = isDirectlyAddressingArthur(text);
+
         let finalPrompt = '';
 
         if (isDirectReply || isMentioned || isAddressing) {
             if (isDirectReply) {
-                const replyText = msg.reply_to_message.text || '';
-                finalPrompt = `[پیام من قبلی]: ${replyText}\n\n[پاسخ کاربر]: ${text}`;
+                const replyText =
+                    msg.reply_to_message.text || '';
+
+                finalPrompt =
+                    `[پیام من قبلی]: ${replyText}\n\n[پاسخ کاربر]: ${text}`;
             } else if (isMentioned) {
-                finalPrompt = text.replace(`@${botInfo.username}`, '').trim();
+                finalPrompt =
+                    text.replace(`@${botInfo.username}`, '').trim();
             } else if (isAddressing) {
                 finalPrompt = keywordPrompt;
             }
-            
+
             if (finalPrompt) {
-                handleChatLogic(bot, msg, finalPrompt, { userCooldowns, activeUsers, reinforcedUsersThisSession, appPrompts, appConfig });
+                handleChatLogic(
+                    bot,
+                    msg,
+                    finalPrompt,
+                    {
+                        userCooldowns,
+                        activeUsers,
+                        reinforcedUsersThisSession,
+                        appPrompts,
+                        appConfig
+                    }
+                );
             }
         }
     }
@@ -195,91 +303,335 @@ async function handleCallbackQueryWrapper(bot, callbackQuery) {
         return;
     }
 
-    const isUserFeature = data.startsWith('tone_') || 
-                          data.startsWith('donate_') || 
-                          data.startsWith('user_') || 
-                          data === 'user_show_api_guide' || 
-                          data === 'user_submit_key_start';
+    const isUserFeature =
+        data.startsWith('tone_') ||
+        data.startsWith('donate_') ||
+        data.startsWith('user_') ||
+        data === 'user_show_api_guide' ||
+        data === 'user_submit_key_start';
 
-    const isOwnerFeature = isOwner(userId) && !isUserFeature;
+    const isOwnerFeature =
+        isOwner(userId) && !isUserFeature;
 
     if (isOwnerFeature) {
         return handleCallbackQuery(bot, callbackQuery);
     }
-    
+
     try {
         if (data.startsWith('tone_set_')) {
             const tone = data.replace('tone_set_', '');
+
             await db.setUserTone(userId, tone);
-            
-            const toneText = tone === 'rude' ? 'بی‌ادب و فحش‌دار' : 'با ادب و مشتی';
-            await bot.answerCallbackQuery(callbackQuery.id, { text: `✅ لحن به "${toneText}" تغییر کرد` });
-            
+
+            const toneText =
+                tone === 'rude'
+                    ? 'بی‌ادب و فحش‌دار'
+                    : 'با ادب و مشتی';
+
+            await bot.answerCallbackQuery(
+                callbackQuery.id,
+                {
+                    text: `✅ لحن به "${toneText}" تغییر کرد`
+                }
+            );
+
             const keyboard = {
                 inline_keyboard: [
-                    [{ text: tone === 'rude' ? '✅ بی‌ادب و فحش‌دار' : '⚪️ بی‌ادب و فحش‌دار', callback_data: 'tone_set_rude' }],
-                    [{ text: tone === 'polite' ? '✅ با ادب و مشتی' : '⚪️ با ادب و مشتی', callback_data: 'tone_set_polite' }]
+                    [
+                        {
+                            text:
+                                tone === 'rude'
+                                    ? '✅ بی‌ادب و فحش‌دار'
+                                    : '⚪️ بی‌ادب و فحش‌دار',
+                            callback_data: 'tone_set_rude'
+                        }
+                    ],
+                    [
+                        {
+                            text:
+                                tone === 'polite'
+                                    ? '✅ با ادب و مشتی'
+                                    : '⚪️ با ادب و مشتی',
+                            callback_data: 'tone_set_polite'
+                        }
+                    ]
                 ]
             };
-            
-            await bot.editMessageReplyMarkup(keyboard, {
-                chat_id: callbackQuery.message.chat.id,
-                message_id: callbackQuery.message.message_id
-            }).catch(() => {});
+
+            await bot.editMessageReplyMarkup(
+                keyboard,
+                {
+                    chat_id:
+                        callbackQuery.message.chat.id,
+                    message_id:
+                        callbackQuery.message.message_id
+                }
+            ).catch(() => {});
+
             return;
         }
 
         if (data.startsWith('donate_')) {
-            return handleDonationCallback(bot, callbackQuery);
+            return handleDonationCallback(
+                bot,
+                callbackQuery
+            );
         }
-        
+
         if (data.startsWith('user_')) {
-            return handleUserPanelCallback(bot, callbackQuery);
-        }
-        
-        if (data === 'user_show_api_guide' || data === 'user_submit_key_start') {
-             await bot.answerCallbackQuery(callbackQuery.id, { text: await db.getText('error_callback', 'یه مشکلی پیش اومد، دوباره تلاش کن.') });
-             return;
+            return handleUserPanelCallback(
+                bot,
+                callbackQuery
+            );
         }
 
-        await bot.answerCallbackQuery(callbackQuery.id, { 
-            text: await db.getText('error_callback', 'یه مشکلی پیش اومد، دوباره تلاش کن.'), 
-            show_alert: false 
-        });
+        if (
+            data === 'user_show_api_guide' ||
+            data === 'user_submit_key_start'
+        ) {
+            await bot.answerCallbackQuery(
+                callbackQuery.id,
+                {
+                    text: await db.getText(
+                        'error_callback',
+                        'یه مشکلی پیش اومد، دوباره تلاش کن.'
+                    )
+                }
+            );
 
+            return;
+        }
+
+        await bot.answerCallbackQuery(
+            callbackQuery.id,
+            {
+                text: await db.getText(
+                    'error_callback',
+                    'یه مشکلی پیش اومد، دوباره تلاش کن.'
+                ),
+                show_alert: false
+            }
+        );
     } catch (error) {
-        console.error("[eventHandlers:handleCallbackQueryWrapper] Error:", error);
-        bot.answerCallbackQuery(callbackQuery.id, { 
-            text: await db.getText('error_callback', 'یه مشکلی پیش اومد، دوباره تلاش کن.'), 
-            show_alert: true 
-        }).catch(() => {});
+        console.error(
+            "[eventHandlers:handleCallbackQueryWrapper] Error:",
+            error
+        );
+
+        bot.answerCallbackQuery(
+            callbackQuery.id,
+            {
+                text: await db.getText(
+                    'error_callback',
+                    'یه مشکلی پیش اومد، دوباره تلاش کن.'
+                ),
+                show_alert: true
+            }
+        ).catch(() => {});
     }
 }
 
 export function registerEventHandlers(bot, deps) {
     init(deps);
-    
-    bot.onText(/\/start(?: (.+))?/, (msg, match) => handleStartCommand(bot, msg, match));
-    bot.onText(/\/enable/, (msg) => handleEnableCommand(bot, msg));
-    bot.onText(/\/help/, (msg) => handleHelpCommand(bot, msg));
-    bot.onText(/\/user/, (msg) => handleUserCommand(bot, msg));
-    
-    bot.onText(/\/new/, (msg) => handleNewCommand(bot, msg));
-    bot.onText(/\/status/, (msg) => handleStatusCommand(bot, msg));
-    bot.onText(/\/forget/, (msg) => handleForgetCommand(bot, msg));
-    bot.onText(/\/donate/, (msg) => handleDonateCommand(bot, msg));
-    bot.onText(/\/tone/, (msg) => handleToneCommand(bot, msg));
-    bot.onText(/\/memory/, (msg) => handleRefreshMemoryCommand(bot, msg));
 
-    bot.onText(/\/stats/, (msg) => handleStatsCommand(bot, msg));
-    bot.onText(/\/clearstates/, (msg) => handleClearStatesCommand(bot, msg));
-    bot.onText(/\/broadcast/, (msg) => handleBroadcastCommand(bot, msg));
-    bot.onText(/\/backup/, (msg) => handleBackupCommand(bot, msg));
-    bot.onText(/\/resetprompts/, (msg) => handleResetPromptsCommand(bot, msg));
+    /*
+     * این wrapper باعث می‌شود commandهای کاربران عادی
+     * در PV اجرا نشوند.
+     */
+    const privateChatGuard = (handler) => {
+        return (msg, ...args) => {
+            if (
+                msg.chat?.type === 'private' &&
+                !isOwner(msg.from?.id)
+            ) {
+                return sendMessageSafe(
+                    bot,
+                    msg.chat.id,
+                    '❌ برای استفاده از من، باید من را به یک گروه اضافه کنید.'
+                );
+            }
 
-    bot.on('message', (msg) => handleGeneralMessage(bot, msg));
+            return handler(msg, ...args);
+        };
+    };
 
-    bot.on('callback_query', (callbackQuery) => handleCallbackQueryWrapper(bot, callbackQuery));
+    bot.onText(
+        /\/start(?: (.+))?/,
+        privateChatGuard(
+            (msg, match) =>
+                handleStartCommand(
+                    bot,
+                    msg,
+                    match
+                )
+        )
+    );
+
+    bot.onText(
+        /\/enable/,
+        privateChatGuard(
+            msg =>
+                handleEnableCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/help/,
+        privateChatGuard(
+            msg =>
+                handleHelpCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/user/,
+        privateChatGuard(
+            msg =>
+                handleUserCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/new/,
+        privateChatGuard(
+            msg =>
+                handleNewCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/status/,
+        privateChatGuard(
+            msg =>
+                handleStatusCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/forget/,
+        privateChatGuard(
+            msg =>
+                handleForgetCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/donate/,
+        privateChatGuard(
+            msg =>
+                handleDonateCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/tone/,
+        privateChatGuard(
+            msg =>
+                handleToneCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/memory/,
+        privateChatGuard(
+            msg =>
+                handleRefreshMemoryCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/stats/,
+        privateChatGuard(
+            msg =>
+                handleStatsCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/clearstates/,
+        privateChatGuard(
+            msg =>
+                handleClearStatesCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/broadcast/,
+        privateChatGuard(
+            msg =>
+                handleBroadcastCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/backup/,
+        privateChatGuard(
+            msg =>
+                handleBackupCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.onText(
+        /\/resetprompts/,
+        privateChatGuard(
+            msg =>
+                handleResetPromptsCommand(
+                    bot,
+                    msg
+                )
+        )
+    );
+
+    bot.on(
+        'message',
+        (msg) => handleGeneralMessage(bot, msg)
+    );
+
+    bot.on(
+        'callback_query',
+        (callbackQuery) =>
+            handleCallbackQueryWrapper(
+                bot,
+                callbackQuery
+            )
+    );
 }
-
-

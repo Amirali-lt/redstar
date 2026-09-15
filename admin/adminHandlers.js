@@ -31,7 +31,7 @@ export async function validateApiKey(apiKey) {
     try {
         const genAI = new GoogleGenAI({ apiKey: cleanedApiKey });
         const result = await genAI.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.6-flash",
             contents: "test",
         });
         
