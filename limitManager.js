@@ -1,4 +1,5 @@
-﻿
+﻿import { character } from "./character.js";
+import { characterf } from "./character.js";
 import * as db from './database.js';
 import { checkPrivateChatStatus } from './core/chatLogic.js';
 
@@ -62,9 +63,9 @@ export async function checkUserLimit(userId, appConfig) {
 }
 
 export async function createAPIRequestButton() {
-    const buttonText = await db.getText('limit_button_text', '🤠 **راهنما و کمک به زندگی به آرتور** (بدون محدودیت)');
+    const buttonText = await db.getText('limit_button_text', `🤠 **راهنما و کمک به زندگی با \`/${characterf.firstname}/\`**`);
     
-    const deepLinkUrl = `https://t.me/${process.env.BOT_USERNAME || 'ArthurBot'}?start=show_api_guide`;
+    const deepLinkUrl = `https://t.me/${botUsername}?start=show_api_guide`;
     
     return {
         inline_keyboard: [[
@@ -79,7 +80,8 @@ export async function createAPIRequestButton() {
 export async function createPrivateChatRequiredButton() {
     const buttonText = await db.getText('private_chat_required_button_text', '✅ استارت/آنبلاک کردن چت خصوصی');
     
-    const deepLinkUrl = `https://t.me/${process.env.BOT_USERNAME || 'ArthurBot'}`;
+    const deepLinkUrl = `https://t.me/${process.env.BOT_USERNAME}`;
+
     
     return {
         inline_keyboard: [[

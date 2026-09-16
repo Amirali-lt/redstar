@@ -1,5 +1,6 @@
-﻿
+
 import * as db from '../database.js';
+import { characterf } from "../character.js";
 import { editMessageSafe, escapeMarkdownV2, inlineCode, boldText, codeBlock } from '../utils/textFormatter.js';
 
 const BOT_OWNER_ID = parseInt(process.env.BOT_OWNER_ID || '0', 10);
@@ -14,7 +15,7 @@ export const specialUsersMainMenuKeyboard = {
 };
 
 export async function handleUserManagementCallback(bot, cbq, msg, data) {
-    if (data === 'user_menu_main') return editMessageSafe(bot, msg.chat.id, msg.message_id, '**مدیریت افراد خاص**\n\nرفتار آرتور را نسبت به افراد خاص شخصی‌سازی کنید.', { reply_markup: specialUsersMainMenuKeyboard, parse_mode: 'Markdown' });
+    if (data === 'user_menu_main') return editMessageSafe(bot, msg.chat.id, msg.message_id, `رفتار ${characterf.firstname} را نسبت به افراد خاص شخصی‌سازی کنید.`, { reply_markup: specialUsersMainMenuKeyboard, parse_mode: 'Markdown' });
     
     if (data === 'user_add_start') {
         await db.setOwnerState(BOT_OWNER_ID, 'user_add_awaiting_forward', { message_id: msg.message_id });
@@ -141,8 +142,7 @@ export async function handleUserManagementInput(bot, msg, ownerState, originalPa
         }
 
         await db.setOwnerState(BOT_OWNER_ID, 'user_add_awaiting_prompt', { ...data, display_name: displayName });
-        editMessageSafe(bot, msg.chat.id, originalPanelMessageId, '**مرحله ۳: پرامپت رفتار**\n\nدستورالعمل رفتار آرتور با این فرد را بنویسید.', { reply_markup: { inline_keyboard: [[{ text: '❌ لغو', callback_data: 'cancel_state_return_user_menu_main' }]] }, parse_mode: 'Markdown' }).catch(() => {});
-        return true;
+        editMessageSafe(bot, msg.chat.id, originalPanelMessageId, `**مرحله ۳: پرامپت رفتار**\n\nدستورالعمل رفتار ${characterf.firstname} با این فرد را بنویسید.`, { reply_markup: { inline_keyboard: [[{ text: '❌ لغو', callback_data: 'cancel_state_return_user_menu_main' }]] }, parse_mode: 'Markdown' }).catch(() => {});        return true;
     }
     
     if (state === 'user_add_awaiting_prompt') {
@@ -275,7 +275,7 @@ Specific Prompt to use: ${user.prompt}`;
 
             const responseText = result.response.text();
             
-            const finalText = `🧪 *نتیجه تست پرامپت برای ${escapeMarkdownV2(user.display_name)}*\n\n${boldText('پیام آرتور:')}\n${codeBlock(responseText)}\n\n[👇 بازگشت به تنظیمات]`;
+            const finalText = `🧪 *نتیجه تست پرامپت برای ${escapeMarkdownV2(user.display_name)}*\n\n${boldText(`پیام ${characterf.firstname}:`)}\n${codeBlock(responseText)}\n\n[👇 بازگشت به تنظیمات]`;
 
             await editMessageSafe(bot, currentChatId, messageId, finalText, {
                 reply_markup: {

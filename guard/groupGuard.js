@@ -186,7 +186,7 @@ export async function handleGroupGuard(bot, msg, botInfo) {
     
     if (requiresRestrictPerm) {
         if (!botPerms.canRestrict) {
-            const errorText = await db.getText(botPerms.errorKey, "❌ آرتور مجوز کافی برای این کار رو نداره.");
+            const errorText = await db.getText(botPerms.errorKey, "❌من مجوز کافی برای این کار رو ندارم.");
             await sendMessageSafe(bot, chatId, errorText, { reply_to_message_id: msg.message_id });
             return true;
         }

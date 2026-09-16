@@ -143,7 +143,7 @@ export async function handleToneCommand(bot, msg) {
             ]
         };
         
-        const text = `🎭 *تنظیم لحن آرتور*
+        const text = `🎭 *تنظیم لحن بات *
 
 لحن فعلی: *${currentTone === 'rude' ? 'بی‌ادب و فحش‌دار' : 'با ادب و مشتی'}*
 

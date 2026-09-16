@@ -1,6 +1,8 @@
 ﻿
 import { GoogleGenAI } from '@google/genai';
 import * as db from './database.js';
+import { character } from "./character.js";
+import { characterf } from "./character.js";
 import * as security from './security.js';
 import { prompts } from './prompts.js';
 import { addApiKeyToPool, removeApiKeyFromPool } from './keyPoolManager.js';
@@ -56,7 +58,7 @@ export async function handleCallbackQuery(bot, cbq) {
 
         if (data === 'admin_panel') {
             await db.clearOwnerState(userId);
-            return editMessageSafe(bot, msg.chat.id, msg.message_id, '**پنل مدیریت آرتور مورگان**\n\nلطفا یک گزینه را انتخاب کنید:', {
+            return editMessageSafe(bot, msg.chat.id, msg.message_id, `**پنل مدیریت ${characterf.fullname}**\n\nلطفا یک گزینه را انتخاب کنید:`, {
                 reply_markup: mainPanelKeyboard,
                 parse_mode: 'Markdown'
             });
@@ -204,7 +206,7 @@ export async function handleTextMessage(bot, msg, ownerState) {
         if (state === 'tutorial_api_awaiting_text') {
             const lines = text.trim().split('\n');
             let tutorialText = lines.join('\n');
-            let buttonText = await db.getText('tutorial_button_default', 'کمک به خرید فشنگ و دینامیت برای آرتور');
+            let buttonText = await db.getText('tutorial_button_default', `کمک به خرید بند و بساط برای ${characterf.fullname}`);
             let buttonUrl = null;
 
             const lastLine = lines[lines.length - 1];

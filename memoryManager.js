@@ -1,4 +1,4 @@
-﻿
+﻿import { characterf } from "./character.js";
 import { GoogleGenAI } from '@google/genai';
 import * as db from './database.js';
 import * as security from './security.js';
@@ -20,7 +20,7 @@ async function generateMemorySummary(userId, conversationHistory) {
     
     try {
         const conversationText = conversationHistory
-            .map(msg => `${msg.role === 'user' ? 'User' : 'Arthur'}: ${msg.parts[0].text}`)
+            .map(msg => `${msg.role === 'user' ? 'User' : `${characterf.firstname}`}: ${msg.parts[0].text}`)
             .join('\n');
 
         const systemInstruction = prompts.getMemoryPrompt();

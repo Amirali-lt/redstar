@@ -50,7 +50,7 @@ async function handleHelpCommand(bot, msg) {
 }
 
 function isDirectlyAddressingArthur(text) {
-    const arthurKeywords = ['آرتور', 'ارتور', 'arthur', 'مورگان', 'morgan'];
+    const arthurKeywords = ['جیسون', 'تاد', 'jason', 'ردهود', 'todd', 'red hood', 'redhood'];
     const normalizedText = text.toLowerCase().trim();
     const words = normalizedText.split(/\s+/).filter(w => w.length > 0);
 

@@ -55,7 +55,7 @@ export async function handleStatsCommand(bot, msg) {
         const jalaliDate = toJalali(now);
         const timeString = now.toLocaleTimeString('fa-IR');
 
-        const text = `📊 *آمار لحظه‌ای ربات آرتور*
+        const text = `📊 *آمار لحظه‌ای ربات *
 
 👤 *کاربران \\(۲۴ ساعت اخیر\\):*
    \\- کاربران یکتا: *${escapeMarkdownV2(dayStats.unique_users.toString())} نفر*
