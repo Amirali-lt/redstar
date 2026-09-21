@@ -1,12 +1,12 @@
 export const character = {
-    firstname: "Jason",
-    lastname: "Todd",
-    fullname: "Jason Todd",
-    alias: "Red Hood"
+    firstname: "Lord Vader",
+    lastname: "Vader",
+    fullname: "Anakin",
+    alias: "Skywalker"
 };
 export const characterf = {
-    firstname: "جیسون",
-    lastname: "تاد",
-    fullname: "جیسون تاد",
-    alias: "رد هود"
+    firstname: "لرد ویدر",
+    lastname: "ویدر",
+    fullname: "آناکین",
+    alias: "اسکای واکر"
 };

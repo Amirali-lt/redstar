@@ -1,40 +1,70 @@
 ﻿import { promisify } from 'util';
+
 import { exec } from 'child_process';
+
+import { character, characterf } from '../character.js';
+
 import * as db from '../database.js';
+
 import { handleChatLogic, handleTelegramApiError } from '../core/chatLogic.js';
+
 import { handleCallbackQuery } from '../adminPanel.js';
+
 import { sendMessageSafe } from '../utils/textFormatter.js';
+
 import { isOwner } from '../utils/ownerCheck.js';
+
 import { apiService } from '../modules/apiService.js';
 
 import { handleBackupCommand } from './commands/backup.js';
+
 import { handleNewCommand, handleStatusCommand, handleForgetCommand, handleDonateCommand, handleUserCommand, handleToneCommand, handleRefreshMemoryCommand } from './commands/userCommands.js';
+
 import { handleStatsCommand, handleClearStatesCommand, handleBroadcastCommand, handleResetPromptsCommand } from './commands/ownerCommands.js';
+
 import { handleEnableCommand, handleNewChatMembers, initGroupLifecycle } from './groupLifecycle.js';
+
 import { handleUserKeyDonation, handleDonationCallback } from './userKeyDonation.js';
+
 import { handleAdminInput } from './adminInputHandler.js';
+
 import { handleStartCommand, initStartHandler } from './startHandler.js';
+
 import { handleGroupGuard } from '../guard/groupGuard.js';
+
 import { handleUserPanelCallback, handleUserMemoryInput } from './userPanel.js';
 
 let BOT_OWNER_ID;
+
 let botInfo;
+
 let userCooldowns;
+
 let activeUsers;
+
 let reinforcedUsersThisSession;
+
 let appPrompts;
+
 let appConfig;
 
 function init(deps) {
     BOT_OWNER_ID = deps.BOT_OWNER_ID;
+
     botInfo = deps.botInfo;
+
     userCooldowns = deps.userCooldowns;
+
     activeUsers = deps.activeUsers;
+
     reinforcedUsersThisSession = deps.reinforcedUsersThisSession;
+
     appPrompts = deps.appPrompts;
+
     appConfig = deps.appConfig;
 
     initGroupLifecycle(deps);
+
     initStartHandler(deps);
 }
 
@@ -43,39 +73,88 @@ async function handleHelpCommand(bot, msg) {
         const adminHelpText = await db.getText('help_admin', '**راهنمای مالک ربات**\n\n...');
         sendMessageSafe(bot, msg.chat.id, adminHelpText);
     } else {
-        const userHelpTextTemplate = await db.getText('help_user', 'من آرتورم، آرتور مورگان.\n\n...');
-        const userHelpText = userHelpTextTemplate.replace('{bot_username}', botInfo.username);
+        const userHelpTextTemplate = await db.getText(
+            'help_user',
+            `من ${characterf.firstname}م، ${characterf.fullname}.\n\n...`
+        );
+
+        const userHelpText = userHelpTextTemplate.replace(
+            '{bot_username}',
+            botInfo.username
+        );
+
         sendMessageSafe(bot, msg.chat.id, userHelpText);
     }
 }
 
-function isDirectlyAddressingArthur(text) {
-    const arthurKeywords = ['جیسون', 'تاد', 'jason', 'ردهود', 'todd', 'red hood', 'redhood'];
-    const normalizedText = text.toLowerCase().trim();
-    const words = normalizedText.split(/\s+/).filter(w => w.length > 0);
+function isDirectlyAddressingCharacter(text) {
+    const callingKeywords = [
+        character?.firstname,
+        character?.lastname,
+        character?.fullname,
+        character?.alias,
+        characterf?.firstname,
+        characterf?.lastname,
+        characterf?.fullname,
+        characterf?.alias
+    ]
+        .filter(Boolean)
+        .map(keyword => keyword.toLowerCase());
 
-    if (words.length === 0) return { isAddressing: false, prompt: '' };
+    const normalizedText = text.toLowerCase().trim();
+
+    const words = normalizedText
+        .split(/\s+/)
+        .filter(w => w.length > 0);
+
+    if (words.length === 0) {
+        return {
+            isAddressing: false,
+            prompt: ''
+        };
+    }
 
     let isAddressing = false;
-    for (const keyword of arthurKeywords) {
+
+    for (const keyword of callingKeywords) {
         if (words.includes(keyword)) {
             isAddressing = true;
             break;
         }
     }
 
-    if (!isAddressing) return { isAddressing: false, prompt: '' };
+    if (!isAddressing) {
+        return {
+            isAddressing: false,
+            prompt: ''
+        };
+    }
 
-    const originalWords = text.trim().split(/\s+/).filter(w => w.length > 0);
-    const originalKeyword = originalWords.find(w => arthurKeywords.includes(w.toLowerCase()));
-    const promptStartIndex = originalWords.findIndex(w => w === originalKeyword) + 1;
-    let cleanPrompt = originalWords.slice(promptStartIndex).join(' ').trim();
+    const originalWords = text
+        .trim()
+        .split(/\s+/)
+        .filter(w => w.length > 0);
+
+    const originalKeyword = originalWords.find(
+        w => callingKeywords.includes(w.toLowerCase())
+    );
+
+    const promptStartIndex =
+        originalWords.findIndex(w => w === originalKeyword) + 1;
+
+    let cleanPrompt = originalWords
+        .slice(promptStartIndex)
+        .join(' ')
+        .trim();
 
     if (cleanPrompt.length === 0) {
         cleanPrompt = originalKeyword;
     }
 
-    return { isAddressing: true, prompt: cleanPrompt };
+    return {
+        isAddressing: true,
+        prompt: cleanPrompt
+    };
 }
 
 const groupMessageCounters = new Map();
@@ -93,6 +172,7 @@ async function handleGeneralMessage(bot, msg) {
      * بنابراین اگر پیام یک command باشد اینجا چیزی نمی‌فرستیم
      * تا پیام دوبل ارسال نشود.
      */
+
     if (msg.chat.type === 'private' && !isOwner(userId)) {
         if (text && text.startsWith('/')) {
             return;
@@ -113,18 +193,22 @@ async function handleGeneralMessage(bot, msg) {
 
     if (msg.chat.type !== 'private') {
         const guardHandled = await handleGroupGuard(bot, msg, botInfo);
+
         if (guardHandled) return;
 
         const chatId = msg.chat.id;
+
         if (!groupMessageCounters.has(chatId)) {
             groupMessageCounters.set(chatId, 0);
         }
 
         const counter = groupMessageCounters.get(chatId) + 1;
+
         groupMessageCounters.set(chatId, counter);
 
         if (counter >= Math.floor(Math.random() * 11) + 10) {
             groupMessageCounters.set(chatId, 0);
+
             const messageText = msg.text || msg.caption || '';
 
             if (messageText.length > 10) {
@@ -148,13 +232,17 @@ async function handleGeneralMessage(bot, msg) {
         }
     }
 
-    let ownerState = { state: null, data: {} };
+    let ownerState = {
+        state: null,
+        data: {}
+    };
 
     if (isOwner(userId)) {
         try {
             ownerState = await db.getOwnerState(userId);
         } catch (e) {
             await db.clearOwnerState(userId);
+
             return sendMessageSafe(
                 bot,
                 userId,
@@ -202,6 +290,7 @@ async function handleGeneralMessage(bot, msg) {
 
     if (text && !text.startsWith('/') && botInfo.username) {
         const botIdMention = `@${botInfo.id}`;
+
         const isAIMode = text.startsWith(botIdMention + ' ');
 
         if (isAIMode) {
@@ -258,7 +347,7 @@ async function handleGeneralMessage(bot, msg) {
         let {
             isAddressing,
             prompt: keywordPrompt
-        } = isDirectlyAddressingArthur(text);
+        } = isDirectlyAddressingCharacter(text);
 
         let finalPrompt = '';
 
@@ -438,6 +527,7 @@ export function registerEventHandlers(bot, deps) {
      * این wrapper باعث می‌شود commandهای کاربران عادی
      * در PV اجرا نشوند.
      */
+
     const privateChatGuard = (handler) => {
         return (msg, ...args) => {
             if (

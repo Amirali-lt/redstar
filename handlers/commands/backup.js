@@ -1,4 +1,7 @@
-﻿import { exec } from 'child_process';
+﻿import { createGzip } from 'zlib';
+import { pipeline } from 'stream/promises';
+import { createReadStream, createWriteStream } from 'fs';
+import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
@@ -72,14 +75,21 @@ async function createDatabaseBackup() {
 
 async function compressBackup(sqlFilePath) {
     const gzipPath = `${sqlFilePath}.gz`;
-    
-    await execAsync(`gzip -c "${sqlFilePath}" > "${gzipPath}"`);
-    
+
+    await pipeline(
+        createReadStream(sqlFilePath),
+        createGzip(),
+        createWriteStream(gzipPath)
+    );
+
     const compressedSize = await getFileSize(gzipPath);
-    
+
     await fs.unlink(sqlFilePath);
-    
-    return { filepath: gzipPath, fileSize: compressedSize };
+
+    return {
+        filepath: gzipPath,
+        fileSize: compressedSize
+    };
 }
 
 async function cleanOldBackups() {
