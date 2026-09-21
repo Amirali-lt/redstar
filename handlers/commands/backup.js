@@ -1,8 +1,7 @@
-﻿import { createGzip } from 'zlib';
+﻿import { getPool } from '../../database/connector.js';
+import { createGzip } from 'zlib';
 import { pipeline } from 'stream/promises';
 import { createReadStream, createWriteStream } from 'fs';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import cron from 'node-cron';
@@ -11,7 +10,7 @@ import { sendMessageSafe, editMessageSafe } from '../../utils/textFormatter.js';
 import { isOwner } from '../../utils/ownerCheck.js';
 import { character } from '../../character.js';
 
-const execAsync = promisify(exec);
+
 
 const MAX_TELEGRAM_FILE_SIZE = 50 * 1024 * 1024;
 const BACKUP_DIR = './backups';
@@ -35,44 +34,111 @@ async function getFileSize(filePath) {
     return stats.size;
 }
 
+
 async function createDatabaseBackup() {
     await ensureBackupDir();
-    
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    const filename = `${character.firstname.toLowerCase()}_backup_${timestamp}.sql`;
+
+    const timestamp = new Date()
+        .toISOString()
+        .replace(/[:.]/g, '-')
+        .slice(0, -5);
+
+    const filename =
+        `${character.firstname.toLowerCase()}_backup_${timestamp}.sql`;
+
     const filepath = path.join(BACKUP_DIR, filename);
-    
-    const dbHost = process.env.DB_HOST || 'localhost';
-    const dbPort = process.env.DB_PORT || 3306;
-    const dbUser = process.env.DB_USER;
-    const dbPassword = process.env.DB_PASSWORD;
-    const dbName = process.env.DB_NAME;
-    
-    if (!dbUser || !dbPassword || !dbName) {
-        throw new Error('Database credentials not found in environment variables');
-    }
-    
-    const dumpCommand = `mysqldump --skip-ssl -h ${dbHost} -P ${dbPort} -u ${dbUser} ${dbName} --single-transaction --quick --lock-tables=false > "${filepath}"`;
-    
+
+    const pool = getPool();
+    const connection = await pool.getConnection();
+
     try {
-        await execAsync(dumpCommand, {
-            env: { ...process.env, MYSQL_PWD: dbPassword }
-        });
-        
+        const chunks = [];
+
+        chunks.push('-- MariaDB SQL Backup\n');
+        chunks.push(`-- Database: ${process.env.DB_NAME}\n\n`);
+        chunks.push('SET FOREIGN_KEY_CHECKS=0;\n\n');
+
+        const [tables] = await connection.query('SHOW FULL TABLES');
+
+        for (const row of tables) {
+            const tableName = row[Object.keys(row)[0]];
+            const tableType = row[Object.keys(row)[1]];
+
+            // Views are skipped by this basic backup implementation.
+            if (tableType === 'VIEW') {
+                continue;
+            }
+
+            const escapedTable = connection.escapeId(tableName);
+
+            const [createResult] = await connection.query(
+                `SHOW CREATE TABLE ${escapedTable}`
+            );
+
+            const createKey = Object.keys(createResult[0])
+                .find(key => key.toLowerCase().includes('create'));
+
+            if (!createKey) {
+                throw new Error(
+                    `Could not get table structure for ${tableName}`
+                );
+            }
+
+            chunks.push(`-- Table: ${tableName}\n`);
+            chunks.push(`DROP TABLE IF EXISTS ${escapedTable};\n`);
+            chunks.push(`${createResult[0][createKey]};\n\n`);
+
+            const [rows] = await connection.query(
+                `SELECT * FROM ${escapedTable}`
+            );
+
+            if (rows.length === 0) {
+                continue;
+            }
+
+            const columns = Object.keys(rows[0])
+                .map(column => connection.escapeId(column))
+                .join(', ');
+
+            chunks.push(
+                `INSERT INTO ${escapedTable} (${columns}) VALUES\n`
+            );
+
+            const values = rows.map(row => {
+                const escapedValues = Object.values(row)
+                    .map(value => connection.escape(value))
+                    .join(', ');
+
+                return `(${escapedValues})`;
+            });
+
+            chunks.push(values.join(',\n'));
+            chunks.push(';\n\n');
+        }
+
+        chunks.push('SET FOREIGN_KEY_CHECKS=1;\n');
+
+        await fs.writeFile(filepath, chunks.join(''), 'utf8');
+
         const fileSize = await getFileSize(filepath);
-        return { filepath, fileSize, filename };
+
+        return {
+            filepath,
+            fileSize,
+            filename
+        };
     } catch (error) {
         try {
             await fs.unlink(filepath);
         } catch {}
-        
-        const stderr = error.stderr || error.message;
-        const enhancedError = new Error(`Backup failed. Error: ${stderr.trim()}`);
-        enhancedError.originalError = error;
-        throw enhancedError;
+
+        throw new Error(
+            `Backup failed: ${error.message}`
+        );
+    } finally {
+        connection.release();
     }
 }
-
 async function compressBackup(sqlFilePath) {
     const gzipPath = `${sqlFilePath}.gz`;
 
@@ -111,14 +177,7 @@ async function cleanOldBackups() {
     }
 }
 
-async function checkMysqldumpAvailability() {
-    try {
-        await execAsync('mysqldump --version');
-        return true;
-    } catch (error) {
-        return false;
-    }
-}
+
 
 export function scheduleAutoBackup() {
     cron.schedule('0 */4 * * *', async () => {
@@ -251,35 +310,6 @@ export async function sendCriticalAlert(message) {
         );
     }
 }
-
-export async function handleBackupCommand(bot, msg) {
-    if (!isOwner(msg.from.id)) {
-        return;
-    }
-
-    const hasMysqldump =
-        await checkMysqldumpAvailability();
-
-    if (!hasMysqldump) {
-        const errorText = 
-            `❌ **mysqldump یافت نشد**\n\n` +
-            `برای استفاده از این قابلیت، mysqldump باید روی سرور نصب باشد.\n\n` +
-            `**نصب:**\n` +
-            `\`apt-get install mysql-client\` (Ubuntu/Debian)\n` +
-            `\`yum install mysql\` (CentOS/RHEL)`;
-        
-        await sendMessageSafe(
-            bot,
-            msg.chat.id,
-            errorText,
-            { 
-                reply_to_message_id: msg.message_id,
-                parse_mode: 'Markdown'
-            }
-        );
-
-        return;
-    }
     
     const statusMsg =
         await sendMessageSafe(
