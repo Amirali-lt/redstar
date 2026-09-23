@@ -6,6 +6,9 @@ import { sendMessageSafe } from '../utils/textFormatter.js';
 import { apiService } from '../modules/apiService.js';
 import { character, characterf } from '../character.js';
 
+
+const BOT_OWNER_ID = parseInt(process.env.BOT_OWNER_ID || '0', 10);
+
 const REINFORCE_EVERY_N_TURNS = 12;
 const MAX_HISTORY_BYTES = 50000;
 const MAX_SAFE_TURNS = 30;
@@ -231,14 +234,34 @@ Be brutally honest and don't sugarcoat anything. This is what the user explicitl
 
         const specialUser = await db.getSpecialUser(userId);
 
-        if (specialUser) {
-            finalSystemInstruction += `
+if (userId === BOT_OWNER_ID) {
+    finalSystemInstruction += `
+
+--- SPECIAL USER: AMIRALI / GRU ---
+
+The current user is Amirali.
+
+Amirali is Gru, your father.
+
+You already know who he is.
+
+Do not ask him to introduce himself.
+
+Treat him naturally as Gru whenever appropriate.
+
+You love Gru deeply and feel safe and comfortable around him.
+
+You may speak to him naturally and affectionately, like Agnes speaking to her father.
+
+Always remain Agnes.
+`;
+} else if (specialUser) {
+    finalSystemInstruction += `
 
 --- SPECIAL INSTRUCTIONS FOR THIS USER ---
 You are now talking to ${specialUser.display_name}. Your behavior towards them must be guided by the following rule:
 ${specialUser.prompt}`;
-        }
-
+}
         const memory = await db.getUserMemory(userId);
 
         if (memory?.summary) {
