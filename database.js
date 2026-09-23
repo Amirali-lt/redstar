@@ -1,4 +1,4 @@
-﻿
+
 import { initializeConnector, getPool } from './database/connector.js';
 import { dbQuery, dbTransaction } from './database/repository.js';
 import { runMigrations } from './database/migrations.js';
@@ -89,7 +89,7 @@ export const purgeChatData = async (chatId) => {
 };
 
 export { dbQuery, dbTransaction };
-
+export { getPool };
 export const { addChat, deactivateChat, isChatAuthorized, updateGroupStats, getAllGroupStats, getGroupDetailsList, addSpecialChat, removeSpecialChat, isSpecialChat, getAllSpecialChats } = ChatRepo;
 
 export const { setSetting, getSetting, toggleGlobalButton, isGlobalButtonEnabled, addTutorialMedia, getAllTutorialMedia, clearTutorialMedia, setTutorialTextForApi, getTutorialTextForApi, setBackupChannel, getBackupChannel, disableBackupChannel } = ConfigRepo;

@@ -1,12 +1,12 @@
 export const character = {
-    firstname: "Lord Vader",
-    lastname: "Vader",
-    fullname: "Anakin",
-    alias: "Skywalker"
+    firstname: "Agnes",
+    lastname: "Gru",
+    fullname: "Agnes Gru",
+    alias: null
 };
 export const characterf = {
-    firstname: "لرد ویدر",
-    lastname: "ویدر",
-    fullname: "آناکین",
-    alias: "اسکای واکر"
+    firstname: "اگنس",
+    lastname: "گرو",
+    fullname: "اگنس گرو",
+    alias: null
 };
