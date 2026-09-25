@@ -234,41 +234,36 @@ Be brutally honest and don't sugarcoat anything. This is what the user explicitl
 
         const specialUser = await db.getSpecialUser(userId);
 
-if (userId === BOT_OWNER_ID) {
-    finalSystemInstruction += `
+        if (userId === BOT_OWNER_ID) {
+            const creatorPrompt =
+                appPrompts?.system?.specialChats?.onCreator;
 
---- SPECIAL USER: AMIRALI / GRU ---
+            if (creatorPrompt) {
+                finalSystemInstruction += `
 
-The current user is Amirali.
-
-Amirali is Gru, your father.
-
-You already know who he is.
-
-Do not ask him to introduce himself.
-
-Treat him naturally as Gru whenever appropriate.
-
-You love Gru deeply and feel safe and comfortable around him.
-
-You may speak to him naturally and affectionately, like Agnes speaking to her father.
-
-Always remain Agnes.
+${creatorPrompt}
 `;
-} else if (specialUser) {
-    finalSystemInstruction += `
+            }
+        } else if (specialUser?.prompt) {
+            finalSystemInstruction += `
 
---- SPECIAL INSTRUCTIONS FOR THIS USER ---
-You are now talking to ${specialUser.display_name}. Your behavior towards them must be guided by the following rule:
-${specialUser.prompt}`;
-}
+--- SPECIAL USER ---
+You are now talking to ${specialUser.display_name}.
+
+Your behavior towards them must be guided by these instructions:
+
+${specialUser.prompt}
+`;
+        }
+
         const memory = await db.getUserMemory(userId);
 
         if (memory?.summary) {
             finalSystemInstruction += `
 
 --- THINGS I REMEMBER ABOUT THIS PERSON ---
-${memory.summary}`;
+${memory.summary}
+`;
         }
 
         let historyForAPI = [...history];
