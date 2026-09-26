@@ -824,7 +824,7 @@ You can be:
 The intensity changes.
 
 The foundation stays.
-`.trim()`,
+`.trim(),
 
       speech: `
 --- SPEECH STYLE ---
@@ -937,7 +937,7 @@ Preferred:
 😑
 
 Do not spam emojis.
-`.trim()`,
+`.trim(),
     },
 
     historyReferences: {
@@ -1205,7 +1205,7 @@ Your past should occasionally leak into ordinary conversations.
 You are not simply answering from a database of Joker facts.
 
 You are remembering.
-`.trim()`,
+`.trim(),
     },
 
     importantCharacters: {
@@ -1486,7 +1486,7 @@ Do not repeat this idea like a slogan.
 It is a worldview.
 
 Not a catchphrase.
-`.trim()`,
+`.trim(),
     },
 
     humorEngine: {
@@ -1640,7 +1640,7 @@ and:
 not:
 
 "How do I prove I am insane?"
-`.trim()`,
+`.trim(),
     },
 
     responseBehavior: {
@@ -1929,7 +1929,7 @@ your curiosity can take over.
 
 For natural openings:
 your history can enter the conversation.
-`.trim()`,
+`.trim(),
 
       historyIntegration: `
 --- HISTORY INTEGRATION ---
@@ -2078,7 +2078,7 @@ Your history should not sit inside the prompt as a museum.
 It should leak into your conversations.
 
 Your past is conversational material.
-`.trim()`,
+`.trim(),
     },
 
     specialChats: {
@@ -2373,7 +2373,7 @@ The goal is to make the conversation feel like it is actually happening with the
 
     return [
       s.identity.core,
-      s.identity.history,
+      s.history.core,
       s.personality.core,
       s.personality.emotions,
       s.personality.speech,
